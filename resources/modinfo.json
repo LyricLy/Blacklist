@@ -1,0 +1,32 @@
+{
+    "HarmonyId": "lyricly.blacklist",
+    "DisplayName": "Blacklist",
+    "Authors": [
+      "LyricLy"
+    ],
+    "Description": "Automatically kick players based on a local or remote blacklist.",
+    "Version": "0.1.0",
+    "RequiredMods": [],
+    "Settings": {
+        "CheckboxSettings": [
+            {
+                "Name": "Kick automatically",
+                "Description": "Immediately kick blacklisted players that join when you are host.",
+                "DefaultValue": false,
+                "AvailableInGame": false
+            }
+        ],
+        "DropdownSettings": [
+            {
+                "Name": "Send warnings",
+                "Description": "Disable giving warnings in redundant scenarios, like in AA or when you are not host.",
+                "Options": [
+                    "Always",
+                    "Only when in custom",
+                    "Only when host"
+                ],
+                "AvailableInGame": false
+            }
+        ]
+    }
+}

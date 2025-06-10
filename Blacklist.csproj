@@ -1,0 +1,72 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard21</TargetFramework>
+    <AssemblyName>Blacklist</AssemblyName>
+    <Description></Description>
+    <RootNamespace>Blacklist</RootNamespace>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>11.0</LangVersion>
+    <Optimize>true</Optimize>
+	<DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+    <RestoreAdditionalProjectSources>
+      https://api.nuget.org/v3/index.json;
+      https://nuget.bepinex.dev/v3/index.json
+    </RestoreAdditionalProjectSources>
+
+	<SalemModLoaderLink>https://github.com/Curtbot9000/SalemModLoader/releases/latest/download/SalemModLoader.dll</SalemModLoaderLink>
+	<SteamLibraryPath>$(Home)/.steam/steam/</SteamLibraryPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="resources/modinfo.json" />
+    <EmbeddedResource Include="resources/thumbnail.png" />
+    <EmbeddedResource Include="resources/config.kdl" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HarmonyX" Version="2.10.2" />
+    <PackageReference Include="Kadlet" Version="0.1.0" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.1">
+	  <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	  <PrivateAssets>all</PrivateAssets>
+	</PackageReference>
+
+    <Reference Include="Assembly-CSharp" Publicize="true">
+      <HintPath>./libs/Assembly-CSharp.dll</HintPath>
+    </Reference>
+    
+    <Reference Include="UnityEngine">
+      <HintPath>./libs/UnityEngine.dll</HintPath>
+    </Reference>
+
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>./libs/UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+
+    <Reference Include="SalemModLoader">
+      <HintPath>./libs/SalemModLoader.dll</HintPath>
+    </Reference>
+    
+  </ItemGroup>
+
+  <Target Name="PrepareBuildFiles" AfterTargets="BeforeBuild">
+    <DownloadFile SourceUrl="$(SalemModLoaderLink)" DestinationFolder="$(MSBuildThisFileDirectory)/libs" SkipUnchangedFiles="true">
+      <Output TaskParameter="DownloadedFile" ItemName="Content" />
+	</DownloadFile>
+
+    <Copy SourceFiles="@(Reference -> '$(SteamLibraryPath)/steamapps/common/Town of Salem 2/TownOfSalem2_Data/Managed/%(Identity).dll')" DestinationFolder="./libs" Condition="'$(SteamLibraryPath)' != '' And '%(Identity)' != '' And Exists(@(Reference -> '$(SteamLibraryPath)/steamapps/common/Town of Salem 2/TownOfSalem2_Data/Managed/%(Identity).dll'))" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(Reference -> '$(SteamLibraryPath)/steamapps/common/Town of Salem 2/SalemModLoader/Mods/%(Identity).dll')" DestinationFolder="./libs" Condition="'$(SteamLibraryPath)' != '' And '%(Identity)' != '' And Exists(@(Reference -> '$(SteamLibraryPath)/steamapps/common/Town of Salem 2/SalemModLoader/Mods/%(Identity).dll'))" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(Reference -> '$(SteamLibraryPath)/steamapps/common/Town of Salem 2/SalemModLoader/Libs/%(Identity).dll')" DestinationFolder="./libs" Condition="'$(SteamLibraryPath)' != '' And '%(Identity)' != '' And Exists(@(Reference -> '$(SteamLibraryPath)/steamapps/common/Town of Salem 2/SalemModLoader/Libs/%(Identity).dll'))" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="Copy" AfterTargets="Build" Condition="'$(SteamLibraryPath)' != ''">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SteamLibraryPath)/steamapps/common/Town of Salem 2/SalemModLoader/Mods" />
+  </Target>
+  <Target Name="Repack" AfterTargets="Publish">
+    <Exec Command="ilrepack /out:$(PublishDir)Final.dll /lib:$(PublishDir) $(TargetPath) $(PublishDir)Kadlet.dll" />
+  </Target>
+</Project>

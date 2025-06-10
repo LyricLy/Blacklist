@@ -1,0 +1,272 @@
+﻿using SML;
+using System;
+using System.Linq;
+using System.IO;
+using System.Net.Http;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Kadlet;
+using Game.Chat;
+using Shared.Chat;
+using Server.Shared.State;
+using Server.Shared.State.Chat;
+using Server.Shared.Messages;
+using Home.Services;
+using Services;
+using HarmonyLib;
+
+namespace BlacklistMod; 
+
+using BL = Dictionary<string, HashSet<string>>;
+
+class ListParseException : Exception
+{
+    static KdlPrintOptions Compact = new KdlPrintOptions {
+        IndentSize = 0,
+        Newline = " ",
+        TerminateNodesWithSemicolon = true,
+        ExponentChar = 'e',
+    };
+
+    public ListParseException(string message) : base(message)
+    {}
+    public ListParseException(string message, KdlNode badNode) : base($"{message}: {badNode.ToKdlString(Compact).TrimEnd(';')}")
+    {}
+}
+
+[Mod.SalemMod]
+class Blacklist
+{
+    static BL theList;
+    static readonly HttpClient client = new HttpClient();
+    static readonly KdlReader reader = new KdlReader();
+
+    static void AddToList(BL names, string name, Action<HashSet<string>> op)
+    {
+        if (!names.TryGetValue(name, out var listList))
+        {
+            listList = new HashSet<string>();
+            names[name] = listList;
+        }
+        op(listList);
+    }
+
+    async static Task<KdlDocument> FetchList(string url)
+    {
+        try
+        {
+            Stream resp = await client.GetStreamAsync(url);
+            return reader.Parse(resp);
+        }
+        catch (UriFormatException e)
+        {
+            throw new ListParseException($"'{url}' is a malformed URL: {e.Message}");
+        }
+        catch (ArgumentException e)
+        {
+            throw new ListParseException($"Refusing to fetch {url}: {e.Message}");
+        }
+        catch (InvalidOperationException)
+        {
+            throw new ListParseException($"Refusing to fetch {url}: URL must be absolute");
+        }
+        catch (HttpRequestException e)
+        {
+            throw new ListParseException($"Failed to fetch {url}: {e.Message}");
+        }
+        catch (KdlException e)
+        {
+            throw new ListParseException($"{url} returned an invalid document:\n{e.Message}");
+        }
+    }
+
+    async static Task<BL> ParseList(KdlDocument doc, string listName)
+    {
+        var names = new BL();
+        var inno = new HashSet<string>();
+
+        foreach (var node in doc.Nodes)
+        {
+            switch (node.Identifier)
+            {
+                case "-":
+                    if (node.Children != null)
+                    {
+                        throw new ListParseException("Node should not have children", node);
+                    }
+                    if (node.Arguments is [KdlString name])
+                    {
+                        AddToList(names, name.Value, listList => listList.Add(listName));
+                    }
+                    else
+                    {
+                        throw new ListParseException("Improper arguments", node);
+                    }
+                    break;
+                case "!":
+                    if (node.Children != null)
+                    {
+                        throw new ListParseException("Node should not have children", node);
+                    }
+                    if (node.Arguments is [KdlString innoName])
+                    {
+                        inno.Add(innoName);
+                    }
+                    else
+                    {
+                        throw new ListParseException("Improper arguments", node);
+                    }
+                    break;
+                case "list":
+                    string chosenName = node.Arguments switch
+                    {
+                        [] => "",
+                        [KdlString c] => c.Value,
+                        _ => throw new ListParseException("Improper arguments", node),
+                    };
+                    string newName = !chosenName.Any() ? listName : !listName.Any() ? chosenName : $"{listName}/{chosenName}";
+
+                    KdlDocument childDoc = (node.Children != null, node.Properties.TryGetValue("src", out var srcUrl)) switch
+                    {
+                        (true, true) => throw new ListParseException("Node should have children or 'src' property, not both", node),
+                        (false, false) => throw new ListParseException("Node should have children or a 'src' property", node),
+                        (true, false) => node.Children,
+                        (false, true) when srcUrl is KdlString url => await FetchList(url),
+                        _ => throw new ListParseException("'src' must be a string", node),
+                    };
+
+                    foreach (var (key, val) in await ParseList(childDoc, newName))
+                    {
+                        AddToList(names, key, listList => listList.UnionWith(val));
+                    }
+                    break;
+                default:
+                    throw new ListParseException("Unknown node name", node);
+            }
+        }
+
+        // never blacklist ourselves
+        names.Remove(Pepper.GetMyDiscussionPlayer().accountName);
+
+        foreach (var name in inno)
+        {
+            names.Remove(name);
+        }
+        return names;
+    }
+
+    public static void Start()
+    {
+        client.Timeout = TimeSpan.FromSeconds(30);
+        Harmony.CreateAndPatchAll(typeof(Blacklist));
+    }
+
+	[HarmonyPatch(typeof(HomeLocalizationService), "RebuildStringTables")]
+	[HarmonyPostfix]
+	static void AddLocalizationKeys(HomeLocalizationService __instance)
+	{
+		__instance.stringTable_.Add("GUI_BLACKLIST_NOTICE", "[[@{0}]] is blacklisted! {1}");
+		__instance.stringTable_.Add("GUI_BLACKLIST_KICK_NOTICE", "Kicking blacklisted player <b>{0}</b>. {1}");
+		__instance.stringTable_.Add("GUI_BLACKLIST_PARSE_ERROR", "Failed to load blacklist.\n{0}");
+	}
+
+    static void PostErrorRaw(PooledChatController controller, string msg)
+    {
+        var message = new ChatLogMessage();
+        message.chatLogEntry = new ChatLogCustomTextEntry
+        {
+            customText = msg,
+            style = "error",
+            showInChat = true,
+            showInChatLog = false,
+        };
+        Service.Game.Sim.simulation.incomingChatMessage.ForceSet(message);
+    }
+
+    static void PostError(PooledChatController controller, string key) {
+        PostErrorRaw(controller, controller.l10n(key));
+    }
+
+    static void PostError(PooledChatController controller, string key, object arg) {
+        PostErrorRaw(controller, controller.l10n(key, arg));
+    }
+
+    static void PostError(PooledChatController controller, string key, object arg, object arg2) {
+        PostErrorRaw(controller, controller.l10n(key, arg, arg2));
+    }
+
+    async static Task LoadList(PooledChatController controller)
+    {
+        theList = null;
+
+        var path = Path.GetDirectoryName(UnityEngine.Application.dataPath) + "/SalemModLoader/ModFolders/Blacklist/config.kdl";
+        KdlDocument document;
+
+        try
+        {
+            using var fs = File.OpenRead(path);
+            document = reader.Parse(fs);
+        }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            var defaultConfig = typeof(Blacklist).Assembly.GetManifestResourceStream("Blacklist.resources.config.kdl");
+            document = reader.Parse(defaultConfig);
+            defaultConfig.Seek(0, SeekOrigin.Begin);
+            using var fs = File.OpenWrite(path);
+            defaultConfig.CopyTo(fs);
+        }
+        catch (KdlException e)
+        {
+            PostError(controller, "GUI_BLACKLIST_PARSE_ERROR", e.Message);
+            return;
+        }
+
+        try
+        {
+            theList = await ParseList(document, "");
+        }
+        catch (ListParseException e)
+        {
+            PostError(controller, "GUI_BLACKLIST_PARSE_ERROR", e.Message);
+        }
+    }
+
+    [HarmonyPatch(typeof(PooledChatController), "ProcessAlreadyJoined")]
+    [HarmonyPrefix]
+    static void OnJoiningLobby(PooledChatController __instance)
+    {
+        if (Pepper.IsLobbyPhase() && __instance.chatWindowType == ChatWindowType.Chat)
+        {
+            LoadList(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(PooledChatController), "AnnouncePlayerJoinOrDisconnect")]
+    [HarmonyPostfix]
+    static void OnPlayerJoinOrDisconnect(PooledChatController __instance, DiscussionPlayerState discussionPlayerState)
+    {
+        if (Pepper.IsLobbyPhase()
+         && __instance.chatWindowType == ChatWindowType.Chat
+         && discussionPlayerState.valid && discussionPlayerState.connected
+         && theList != null
+         && theList.TryGetValue(discussionPlayerState.accountName, out var listNames))
+        {
+            var listDigest = String.Join(", ", listNames);
+            if (listDigest.Any()) listDigest = $"({listDigest})";
+
+            string condition = ModSettings.GetString("Send warnings", "lyricly.blacklist");
+            bool host = Pepper.IsCustomMode() && Pepper.AmIHost();
+
+            if (ModSettings.GetBool("Kick automatically", "lyricly.blacklist") && host)
+            {
+                PostError(__instance, "GUI_BLACKLIST_KICK_NOTICE", discussionPlayerState.accountName, listDigest);
+                Service.Game.Sim.simulation.SendHostAction(discussionPlayerState.position, HostActionType.Kick);
+            }
+            else if (condition == "Always" || condition == "Only when in custom" && Pepper.IsCustomMode() || host)
+            {
+                PostError(__instance, "GUI_BLACKLIST_NOTICE", discussionPlayerState.position + 1, listDigest);
+            }
+        }
+    }
+}

@@ -1,0 +1,16 @@
+// Cheatsheet:
+
+// Blacklist "EvilBadPlayer"
+// - "EvilBadPlayer"
+
+// Blacklist "A" and "B" with label "Single-Letter Losers"
+// list "Single-Letter Losers" {
+//     - "A"
+//     - "B"
+// }
+
+// Load blacklist from https://example.com
+// list "Example Blacklist" src="https://example.com"
+
+// Explicitly whitelist "GoodPlayer"
+// ! "GoodPlayer"
