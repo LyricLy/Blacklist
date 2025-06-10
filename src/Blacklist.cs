@@ -195,6 +195,30 @@ class Blacklist
         PostErrorRaw(controller, controller.l10n(key, arg, arg2));
     }
 
+    static void CheckBlacklist(PooledChatController controller, DiscussionPlayerState discussionPlayerState)
+    {
+        if (theList == null || !theList.TryGetValue(discussionPlayerState.accountName, out var listNames))
+        {
+            return;
+        }
+
+        var listDigest = String.Join(", ", listNames);
+        if (listDigest.Any()) listDigest = $"({listDigest})";
+
+        string condition = ModSettings.GetString("Send warnings", "lyricly.blacklist");
+        bool host = Pepper.IsCustomMode() && Pepper.AmIHost();
+
+        if (ModSettings.GetBool("Kick automatically", "lyricly.blacklist") && host)
+        {
+            PostError(controller, "GUI_BLACKLIST_KICK_NOTICE", discussionPlayerState.accountName, listDigest);
+            Service.Game.Sim.simulation.SendHostAction(discussionPlayerState.position, HostActionType.Kick);
+        }
+        else if (condition == "Always" || condition == "Only when in custom" && Pepper.IsCustomMode() || host)
+        {
+            PostError(controller, "GUI_BLACKLIST_NOTICE", discussionPlayerState.position + 1, listDigest);
+        }
+    }
+
     async static Task LoadList(PooledChatController controller)
     {
         theList = null;
@@ -230,10 +254,15 @@ class Blacklist
         {
             PostError(controller, "GUI_BLACKLIST_PARSE_ERROR", e.Message);
         }
+
+        foreach (var obs in Service.Game.Sim.info.discussionPlayers)
+        {
+            CheckBlacklist(controller, obs.Data);
+        }
     }
 
     [HarmonyPatch(typeof(PooledChatController), "ProcessAlreadyJoined")]
-    [HarmonyPrefix]
+    [HarmonyPostfix]
     static void OnJoiningLobby(PooledChatController __instance)
     {
         if (Pepper.IsLobbyPhase() && __instance.chatWindowType == ChatWindowType.Chat)
@@ -242,31 +271,13 @@ class Blacklist
         }
     }
 
-    [HarmonyPatch(typeof(PooledChatController), "AnnouncePlayerJoinOrDisconnect")]
+    [HarmonyPatch(typeof(PooledChatController), "HandleOnDiscussionPlayerUpdated")]
     [HarmonyPostfix]
     static void OnPlayerJoinOrDisconnect(PooledChatController __instance, DiscussionPlayerState discussionPlayerState)
     {
-        if (Pepper.IsLobbyPhase()
-         && __instance.chatWindowType == ChatWindowType.Chat
-         && discussionPlayerState.valid && discussionPlayerState.connected
-         && theList != null
-         && theList.TryGetValue(discussionPlayerState.accountName, out var listNames))
+        if (Pepper.IsLobbyPhase() && __instance.chatWindowType == ChatWindowType.Chat && discussionPlayerState.valid && discussionPlayerState.connected)
         {
-            var listDigest = String.Join(", ", listNames);
-            if (listDigest.Any()) listDigest = $"({listDigest})";
-
-            string condition = ModSettings.GetString("Send warnings", "lyricly.blacklist");
-            bool host = Pepper.IsCustomMode() && Pepper.AmIHost();
-
-            if (ModSettings.GetBool("Kick automatically", "lyricly.blacklist") && host)
-            {
-                PostError(__instance, "GUI_BLACKLIST_KICK_NOTICE", discussionPlayerState.accountName, listDigest);
-                Service.Game.Sim.simulation.SendHostAction(discussionPlayerState.position, HostActionType.Kick);
-            }
-            else if (condition == "Always" || condition == "Only when in custom" && Pepper.IsCustomMode() || host)
-            {
-                PostError(__instance, "GUI_BLACKLIST_NOTICE", discussionPlayerState.position + 1, listDigest);
-            }
+            CheckBlacklist(__instance, discussionPlayerState);
         }
     }
 }
