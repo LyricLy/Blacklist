@@ -5,7 +5,7 @@
       "LyricLy"
     ],
     "Description": "Automatically kick players based on a local or remote blacklist.",
-    "Version": "0.1.0",
+    "Version": "0.1.1",
     "RequiredMods": [],
     "Settings": {
         "CheckboxSettings": [
