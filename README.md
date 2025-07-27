@@ -3,13 +3,13 @@ A Town of Salem 2 mod to track names on a local or remote blacklist. When player
 
 ## Installing
 This mod requires [Salem Mod Loader](https://github.com/Curtbot9000/SalemModLoader), but is not available on its mod browser yet.
-After installing SML, you can [download the latest release of Blacklist](https://github.com/LyricLy/Blacklist/releases/latest) and copy the .dll file to the `Town of Salem 2/SalemModLoader/Mods` directory.
+After installing SML, you can [download the latest release of Blacklist](https://github.com/LyricLy/Blacklist/releases/latest) and copy the .dll file to the `Town of Salem 2/SalemModLoader/Mods/` directory.
 
 ## Configuring
 The mod's settings menu allows you to decide whether to kick blacklisted players automatically.
 If you would prefer not to be notified of blacklisted players you can't do anything about (because you are not host or not in a custom), you can change this behaviour too.
 
-Changing the blacklist itself is a bit more technical. After starting a lobby with the mod installed for the first time, a `config.kdl` file is created in `Town of Salem 2/SalemModLoader/Blacklist/`. You'll need to edit it with a text editor.
+Changing the blacklist itself is a bit more technical. After starting a lobby with the mod installed for the first time, a `config.kdl` file is created in `Town of Salem 2/SalemModLoader/ModFolders/Blacklist/`. You'll need to edit it with a text editor.
 
 To blacklist a player, write their name in quotes preceded by a hyphen.
 ```
