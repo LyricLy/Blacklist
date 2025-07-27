@@ -96,7 +96,7 @@ class Blacklist
                     }
                     if (node.Arguments is [KdlString name])
                     {
-                        AddToList(names, name.Value, listList => listList.Add(listName));
+                        AddToList(names, name.Value, listList => listList.Add(listName.ToLower()));
                     }
                     else
                     {
@@ -197,7 +197,7 @@ class Blacklist
 
     static void CheckBlacklist(PooledChatController controller, DiscussionPlayerState discussionPlayerState)
     {
-        if (theList == null || !theList.TryGetValue(discussionPlayerState.accountName, out var listNames))
+        if (theList == null || !theList.TryGetValue(discussionPlayerState.accountName.ToLower(), out var listNames))
         {
             return;
         }
