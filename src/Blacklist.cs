@@ -1,4 +1,4 @@
-﻿using SML;
+using SML;
 using System;
 using System.Linq;
 using System.IO;
@@ -15,7 +15,7 @@ using Home.Services;
 using Services;
 using HarmonyLib;
 
-namespace BlacklistMod; 
+namespace BlacklistMod;
 
 using BL = Dictionary<string, HashSet<string>>;
 
@@ -55,7 +55,7 @@ class Blacklist
     {
         try
         {
-            Stream resp = await client.GetStreamAsync(url);
+            string resp = await client.GetStringAsync(url);
             return reader.Parse(resp);
         }
         catch (UriFormatException e)
@@ -72,7 +72,7 @@ class Blacklist
         }
         catch (HttpRequestException e)
         {
-            throw new ListParseException($"Failed to fetch {url}: {e.Message}");
+            throw new ListParseException($"Failed to fetch {url}: {e.InnerException.Message}");
         }
         catch (KdlException e)
         {
@@ -96,7 +96,7 @@ class Blacklist
                     }
                     if (node.Arguments is [KdlString name])
                     {
-                        AddToList(names, name.Value, listList => listList.Add(listName.ToLower()));
+                        AddToList(names, name.Value.ToLower(), listList => listList.Add(listName));
                     }
                     else
                     {
@@ -168,6 +168,8 @@ class Blacklist
 		__instance.stringTable_.Add("GUI_BLACKLIST_NOTICE", "[[@{0}]] is blacklisted! {1}");
 		__instance.stringTable_.Add("GUI_BLACKLIST_KICK_NOTICE", "Kicking blacklisted player <b>{0}</b>. {1}");
 		__instance.stringTable_.Add("GUI_BLACKLIST_PARSE_ERROR", "Failed to load blacklist.\n{0}");
+		__instance.stringTable_.Add("GUI_BLACKLIST_LOADING", "Loading blacklist...");
+		__instance.stringTable_.Add("GUI_BLACKLIST_LOADED", "Blacklist loaded with {0} entries!");
 	}
 
     static void PostErrorRaw(PooledChatController controller, string msg)
@@ -246,9 +248,19 @@ class Blacklist
             return;
         }
 
+        bool verbose = ModSettings.GetBool("Verbose mode", "lyricly.blacklist");
+        if (verbose)
+        {
+            PostError(controller, "GUI_BLACKLIST_LOADING");
+        }
+
         try
         {
             theList = await ParseList(document, "");
+            if (verbose)
+            {
+                PostError(controller, "GUI_BLACKLIST_LOADED", theList.Count);
+            }
         }
         catch (ListParseException e)
         {
