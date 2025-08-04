@@ -146,7 +146,7 @@ class Blacklist
         }
 
         // never blacklist ourselves
-        names.Remove(Pepper.GetMyDiscussionPlayer().accountName);
+        names.Remove(Service.Home.UserService.UserInfo.AccountName);
 
         foreach (var name in inno)
         {
@@ -170,6 +170,7 @@ class Blacklist
 		__instance.stringTable_.Add("GUI_BLACKLIST_PARSE_ERROR", "Failed to load blacklist.\n{0}");
 		__instance.stringTable_.Add("GUI_BLACKLIST_LOADING", "Loading blacklist...");
 		__instance.stringTable_.Add("GUI_BLACKLIST_LOADED", "Blacklist loaded with {0} entries!");
+		__instance.stringTable_.Add("GUI_BLACKLIST_BAD_ERROR", "Something went very wrong!\n{0}");
 	}
 
     static void PostErrorRaw(PooledChatController controller, string msg)
@@ -265,6 +266,10 @@ class Blacklist
         catch (ListParseException e)
         {
             PostError(controller, "GUI_BLACKLIST_PARSE_ERROR", e.Message);
+        }
+        catch (Exception e)
+        {
+            PostError(controller, "GUI_BLACKLIST_BAD_ERROR", e.ToString());
         }
 
         foreach (var obs in Service.Game.Sim.info.discussionPlayers)
