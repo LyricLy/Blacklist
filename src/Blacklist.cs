@@ -110,7 +110,7 @@ class Blacklist
                     }
                     if (node.Arguments is [KdlString innoName])
                     {
-                        inno.Add(innoName);
+                        inno.Add(innoName.Value.ToLower());
                     }
                     else
                     {
