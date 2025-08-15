@@ -216,6 +216,10 @@ class Blacklist
             PostError(controller, "GUI_BLACKLIST_KICK_NOTICE", discussionPlayerState.accountName, listDigest);
             Service.Game.Sim.simulation.SendHostAction(discussionPlayerState.position, HostActionType.Kick);
         }
+        else if (ModSettings.GetBool("Leave automatically", "lyricly.blacklist"))
+        {
+			Service.Game.Network.Send(new RemovePlayerFromCellMessage(RemovedFromGameReason.EXIT_TO_MAIN_MENU, false));
+        }
         else if (condition == "Always" || condition == "Only when in custom" && Pepper.IsCustomMode() || host)
         {
             PostError(controller, "GUI_BLACKLIST_NOTICE", discussionPlayerState.position + 1, listDigest);
