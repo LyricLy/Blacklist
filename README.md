@@ -16,7 +16,12 @@ To blacklist a player, write their name in quotes preceded by a hyphen.
 - "EvilBadTroll"
 ```
 
-You can organize entries into labelled sublists. The labels will be shown in-game.
+You can add a reason to entries that will be displayed when they trigger in game.
+```
+- "MeanieHead" reason="Yelled at me"
+```
+
+You can organize entries into labelled sublists. The label will be shown in-game with the reason.
 ```
 list "Mediocre Players" {
     - "overcon"

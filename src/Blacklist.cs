@@ -17,7 +17,8 @@ using HarmonyLib;
 
 namespace BlacklistMod;
 
-using BL = Dictionary<string, HashSet<string>>;
+using Reports = Dictionary<string, HashSet<string>>;
+using BL = Dictionary<string, Dictionary<string, HashSet<string>>>;
 
 class ListParseException : Exception
 {
@@ -41,14 +42,10 @@ class Blacklist
     static readonly HttpClient client = new HttpClient();
     static readonly KdlReader reader = new KdlReader();
 
-    static void AddToList(BL names, string name, Action<HashSet<string>> op)
+    static void AddToList<T>(Dictionary<string, T> names, string name, Action<T> op)
+    where T : new()
     {
-        if (!names.TryGetValue(name, out var listList))
-        {
-            listList = new HashSet<string>();
-            names[name] = listList;
-        }
-        op(listList);
+        op(names.GetValueOrDefault(name) ?? (names[name] = new T()));
     }
 
     async static Task<KdlDocument> FetchList(string url)
@@ -96,7 +93,20 @@ class Blacklist
                     }
                     if (node.Arguments is [KdlString name])
                     {
-                        AddToList(names, name.Value.ToLower(), listList => listList.Add(listName));
+                        AddToList(names, name.Value.ToLower(), reports => AddToList(reports, listName, reasons =>
+                        {
+                            if (node.Properties.TryGetValue("reason", out var srcReason))
+                            {
+                                if (srcReason is KdlString reason)
+                                {
+                                    reasons.Add(reason);
+                                }
+                                else
+                                {
+                                    throw new ListParseException("'reason' must be a string", node);
+                                }
+                            }
+                        }));
                     }
                     else
                     {
@@ -137,7 +147,13 @@ class Blacklist
 
                     foreach (var (key, val) in await ParseList(childDoc, newName))
                     {
-                        AddToList(names, key, listList => listList.UnionWith(val));
+                        AddToList(names, key, reports =>
+                        {
+                            foreach (var (listName, newReasons) in val)
+                            {
+                                AddToList(reports, listName, reasons => reasons.UnionWith(newReasons));
+                            }
+                        });
                     }
                     break;
                 default:
@@ -200,12 +216,17 @@ class Blacklist
 
     static void CheckBlacklist(PooledChatController controller, DiscussionPlayerState discussionPlayerState)
     {
-        if (theList == null || !theList.TryGetValue(discussionPlayerState.accountName.ToLower(), out var listNames))
+        if (theList == null || !theList.TryGetValue(discussionPlayerState.accountName.ToLower(), out var reports))
         {
             return;
         }
 
-        var listDigest = String.Join(", ", listNames);
+        var listDigest = String.Join(
+            "; ",
+            reports
+                .Select(e => e.Value.Any() ? $"{(e.Key.Any() ? e.Key : e.Value.Count == 1 ? "reason" : "reasons")}: {String.Join(", ", e.Value)}" : e.Key)
+                .Where(s => s.Any())
+        );
         if (listDigest.Any()) listDigest = $"({listDigest})";
 
         string condition = ModSettings.GetString("Send warnings", "lyricly.blacklist");
