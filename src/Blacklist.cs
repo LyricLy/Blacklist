@@ -222,9 +222,9 @@ class Blacklist
         }
 
         var listDigest = String.Join(
-            "; ",
+            ", ",
             reports
-                .Select(e => e.Value.Any() ? $"{(e.Key.Any() ? e.Key : e.Value.Count == 1 ? "reason" : "reasons")}: {String.Join(", ", e.Value)}" : e.Key)
+                .Select(e => e.Value.Any() ? $"{(e.Key.Any() ? e.Key : e.Value.Count == 1 ? "reason" : "reasons")}: {String.Join(" / ", e.Value)}" : e.Key)
                 .Where(s => s.Any())
         );
         if (listDigest.Any()) listDigest = $"({listDigest})";
